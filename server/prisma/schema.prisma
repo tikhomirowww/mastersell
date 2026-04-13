@@ -1,0 +1,276 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─── Тенант (бизнес-клиент платформы) ───────────────────────────────────────
+model Tenant {
+  id        String   @id @default(cuid())
+  name      String
+  logoUrl   String?  @map("logo_url")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  users           User[]
+  contacts        Contact[]
+  phoneNumbers    PhoneNumber[]
+  businessProfile BusinessProfile?
+  tags            Tag[]
+  invites         Invite[]
+
+  @@map("tenants")
+}
+
+// ─── Пользователь (менеджер тенанта) ─────────────────────────────────────────
+model User {
+  id           String     @id @default(cuid())
+  tenantId     String?    @map("tenant_id")
+  email        String     @unique
+  name         String?
+  avatarUrl    String?    @map("avatar_url")
+  googleId     String?    @unique @map("google_id")
+  passwordHash String?    @map("password_hash")
+  isSuperAdmin Boolean    @default(false) @map("is_super_admin")
+  role         TenantRole @default(MEMBER) @map("role")
+  createdAt    DateTime   @default(now()) @map("created_at")
+
+  tenant Tenant? @relation(fields: [tenantId], references: [id])
+
+  @@map("users")
+}
+
+// ─── Пул телефонных номеров платформы ────────────────────────────────────────
+model PhoneNumber {
+  id        String          @id @default(cuid())
+  number    String          @unique  // +996312963048
+  label     String?                  // "Бишкек 1"
+  country   String          @default("KG")
+  type      PhoneNumberType @default(BOTH)
+  tenantId  String?         @map("tenant_id")  // null = свободен
+  createdAt DateTime        @default(now()) @map("created_at")
+
+  tenant Tenant? @relation(fields: [tenantId], references: [id])
+
+  @@map("phone_numbers")
+}
+
+// ─── Контакт (клиент тенанта) ────────────────────────────────────────────────
+model Contact {
+  id          String   @id @default(cuid())
+  tenantId    String   @map("tenant_id")
+  phone       String?
+  instagramId String?  @map("instagram_id")
+  name        String?
+  email       String?
+  language    Language @default(RU)
+  stage       CrmStage @default(NEW)
+  notes       String?
+  avatarUrl   String?  @map("avatar_url")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  tenant       Tenant         @relation(fields: [tenantId], references: [id])
+  conversations Conversation[]
+  calls         Call[]
+  contactNotes  ContactNote[]
+  tags          ContactTag[]
+  activities    ActivityLog[]
+
+  @@unique([tenantId, phone])
+  @@unique([tenantId, instagramId])
+  @@map("contacts")
+}
+
+// ─── Заметки менеджера ───────────────────────────────────────────────────────
+model ContactNote {
+  id        String   @id @default(cuid())
+  contactId String   @map("contact_id")
+  text      String
+  createdAt DateTime @default(now()) @map("created_at")
+
+  contact Contact @relation(fields: [contactId], references: [id], onDelete: Cascade)
+
+  @@map("contact_notes")
+}
+
+// ─── Теги ────────────────────────────────────────────────────────────────────
+model Tag {
+  id       String @id @default(cuid())
+  tenantId String @map("tenant_id")
+  name     String
+  color    String @default("#6366f1")
+
+  tenant   Tenant     @relation(fields: [tenantId], references: [id])
+  contacts ContactTag[]
+
+  @@unique([tenantId, name])
+  @@map("tags")
+}
+
+model ContactTag {
+  contactId String @map("contact_id")
+  tagId     String @map("tag_id")
+
+  contact Contact @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  tag     Tag     @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([contactId, tagId])
+  @@map("contact_tags")
+}
+
+// ─── Лог активности ──────────────────────────────────────────────────────────
+model ActivityLog {
+  id          String       @id @default(cuid())
+  contactId   String       @map("contact_id")
+  type        ActivityType
+  description String
+  metadata    Json?
+  createdAt   DateTime     @default(now()) @map("created_at")
+
+  contact Contact @relation(fields: [contactId], references: [id], onDelete: Cascade)
+
+  @@map("activity_logs")
+}
+
+// ─── Разговор (чат-сессия) ───────────────────────────────────────────────────
+model Conversation {
+  id        String   @id @default(cuid())
+  contactId String   @map("contact_id")
+  channel   Channel
+  summary   String?
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  contact  Contact   @relation(fields: [contactId], references: [id])
+  messages Message[]
+
+  @@map("conversations")
+}
+
+// ─── Сообщение ───────────────────────────────────────────────────────────────
+model Message {
+  id             String      @id @default(cuid())
+  conversationId String      @map("conversation_id")
+  role           MessageRole
+  content        String
+  tokensUsed     Int?        @map("tokens_used")
+  createdAt      DateTime    @default(now()) @map("created_at")
+
+  conversation Conversation @relation(fields: [conversationId], references: [id])
+
+  @@map("messages")
+}
+
+// ─── Звонок ──────────────────────────────────────────────────────────────────
+model Call {
+  id         String     @id @default(cuid())
+  contactId  String     @map("contact_id")
+  twilioSid  String?    @unique @map("twilio_sid")
+  direction  Direction
+  status     CallStatus @default(INITIATED)
+  duration   Int?
+  transcript String?
+  outcome    String?
+  createdAt  DateTime   @default(now()) @map("created_at")
+  updatedAt  DateTime   @updatedAt @map("updated_at")
+
+  contact Contact @relation(fields: [contactId], references: [id])
+
+  @@map("calls")
+}
+
+// ─── Инвайт для сотрудников ──────────────────────────────────────────────────
+model Invite {
+  id        String    @id @default(cuid())
+  tenantId  String    @map("tenant_id")
+  token     String    @unique @default(cuid())
+  usedAt    DateTime? @map("used_at")
+  createdBy String    @map("created_by")
+  createdAt DateTime  @default(now()) @map("created_at")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@map("invites")
+}
+
+// ─── Профиль бизнеса (один на тенант) ───────────────────────────────────────
+model BusinessProfile {
+  id                 String   @id @default(cuid())
+  tenantId           String   @unique @map("tenant_id")
+  name               String   @default("")
+  agentContext       String   @default("") @map("agent_context")
+  chatHistory        String?  @map("chat_history")
+  greenApiInstanceId String?  @map("green_api_instance_id")
+  greenApiToken      String?  @map("green_api_token")
+  updatedAt          DateTime @updatedAt @map("updated_at")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+
+  @@map("business_profile")
+}
+
+// ─── Enums ───────────────────────────────────────────────────────────────────
+
+enum TenantRole {
+  ADMIN
+  MEMBER
+}
+
+enum PhoneNumberType {
+  VOICE
+  WHATSAPP
+  BOTH
+}
+enum Language {
+  RU
+  KY
+}
+
+enum CrmStage {
+  NEW
+  CONTACTED
+  INTERESTED
+  NEGOTIATING
+  WON
+  LOST
+}
+
+enum Channel {
+  WHATSAPP
+  INSTAGRAM
+  VOICE
+}
+
+enum MessageRole {
+  USER
+  ASSISTANT
+}
+
+enum Direction {
+  INBOUND
+  OUTBOUND
+}
+
+enum CallStatus {
+  INITIATED
+  RINGING
+  IN_PROGRESS
+  COMPLETED
+  FAILED
+  NO_ANSWER
+}
+
+enum ActivityType {
+  CONTACT_CREATED
+  STAGE_CHANGED
+  MESSAGE_RECEIVED
+  MESSAGE_SENT
+  CALL_INITIATED
+  CALL_COMPLETED
+  NOTE_ADDED
+  TAG_ADDED
+  TAG_REMOVED
+}
