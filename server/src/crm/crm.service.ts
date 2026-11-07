@@ -1,5 +1,5 @@
 import { Injectable, Logger, OnModuleInit, NotFoundException } from '@nestjs/common';
-import { PrismaClient, Contact, Channel, CrmStage, ActivityType } from '@prisma/client';
+import { Prisma, PrismaClient, Contact, Channel, CrmStage, ActivityType } from '@prisma/client';
 import {
   CreateContactDto,
   UpdateContactDto,
@@ -134,17 +134,24 @@ export class CrmService extends PrismaClient implements OnModuleInit {
       : { tenantId_instagramId: { tenantId, instagramId: data.instagramId! } };
 
     const existing = await this.contact.findUnique({ where: where as any });
+    if (existing) return this.fillMissingName(existing, data.name);
 
-    if (existing) {
-      if (data.name && !existing.name) {
-        return this.contact.update({ where: { id: existing.id }, data: { name: data.name } });
-      }
-      return existing;
+    try {
+      const created = await this.contact.create({ data: { ...data, tenantId } });
+      await this.logActivity(created.id, 'CONTACT_CREATED', 'Контакт создан автоматически');
+      return created;
+    } catch (e) {
+      if (!(e instanceof Prisma.PrismaClientKnownRequestError) || e.code !== 'P2002') throw e;
+      const winner = await this.contact.findUniqueOrThrow({ where: where as any });
+      return this.fillMissingName(winner, data.name);
     }
+  }
 
-    const created = await this.contact.create({ data: { ...data, tenantId } });
-    await this.logActivity(created.id, 'CONTACT_CREATED', 'Контакт создан автоматически');
-    return created;
+  private fillMissingName(contact: Contact, name?: string): Promise<Contact> | Contact {
+    if (name && !contact.name) {
+      return this.contact.update({ where: { id: contact.id }, data: { name } });
+    }
+    return contact;
   }
 
   // ─── Notes ─────────────────────────────────────────────────────────────────
