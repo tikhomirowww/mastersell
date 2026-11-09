@@ -33,8 +33,16 @@ const SUPPLIER_HTML = `<html><head><style>.promo{color:red}</style></head><body>
 <footer>© Supplier LLC 2026. Все права защищены.</footer>
 </body></html>`;
 
+const ONLY = process.env.STEP;
+const STEP_NO: Record<string, string> = { '①': '1', '②': '2', '③': '3', '④': '4', '⑤': '5', '⑥': '6', '⑦': '7', '⑧': '8' };
+let currentStep = '0';
+const rawLog = console.log;
+console.log = (...args: unknown[]) => {
+  if (!ONLY || ONLY === currentStep) rawLog(...args);
+};
+
 const line = (s: string, n = 90) => s.replace(/\n/g, ' ').slice(0, n);
-const header = (n: string, title: string) => console.log(`\n${'━'.repeat(4)} ${n} ${title} ${'━'.repeat(Math.max(0, 70 - title.length))}`);
+const header = (n: string, title: string) => (currentStep = STEP_NO[n]) && console.log(`\n${'━'.repeat(4)} ${n} ${title} ${'━'.repeat(Math.max(0, 70 - title.length))}`);
 
 function printHits(label: string, hits: RankedHit[], score: (h: RankedHit) => string) {
   console.log(`  ${label}`);
