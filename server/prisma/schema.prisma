@@ -286,3 +286,18 @@ model ProcessedMessage {
 
   @@map("processed_messages")
 }
+
+// ─── База знаний бизнеса (RAG) ───────────────────────────────────────────────
+model KnowledgeChunk {
+  id        String                     @id @default(cuid())
+  tenantId  String                     @map("tenant_id")
+  source    String
+  content   String
+  embedding Unsupported("vector(384)")
+  tsv       Unsupported("tsvector")?
+  trusted   Boolean                    @default(true)
+  createdAt DateTime                   @default(now()) @map("created_at")
+
+  @@index([tenantId])
+  @@map("knowledge_chunks")
+}
