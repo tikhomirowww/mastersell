@@ -36,6 +36,15 @@ export class CrmService extends PrismaClient implements OnModuleInit {
     return { tenantId: profile.tenantId, token: profile.greenApiToken };
   }
 
+  async getTenantByInstagramAccount(accountId: string): Promise<{ tenantId: string; token: string } | null> {
+    const profile = await this.businessProfile.findUnique({
+      where: { instagramAccountId: accountId },
+      select: { tenantId: true, instagramAccessToken: true },
+    });
+    if (!profile?.instagramAccessToken) return null;
+    return { tenantId: profile.tenantId, token: profile.instagramAccessToken };
+  }
+
   // ─── Contacts ──────────────────────────────────────────────────────────────
 
   async getContacts(tenantId: string, query: ContactsQueryDto) {
@@ -75,9 +84,9 @@ export class CrmService extends PrismaClient implements OnModuleInit {
     };
   }
 
-  async getContact(id: string) {
-    const contact = await this.contact.findUnique({
-      where: { id },
+  async getContact(tenantId: string, id: string) {
+    const contact = await this.contact.findFirst({
+      where: { id, tenantId },
       include: {
         tags: { include: { tag: true } },
         contactNotes: { orderBy: { createdAt: 'desc' } },
@@ -101,18 +110,18 @@ export class CrmService extends PrismaClient implements OnModuleInit {
     return contact;
   }
 
-  async updateContact(id: string, dto: UpdateContactDto): Promise<Contact> {
-    await this.findOrThrow(id);
+  async updateContact(tenantId: string, id: string, dto: UpdateContactDto): Promise<Contact> {
+    await this.findOrThrow(tenantId, id);
     return this.contact.update({ where: { id }, data: dto });
   }
 
-  async deleteContact(id: string): Promise<void> {
-    await this.findOrThrow(id);
+  async deleteContact(tenantId: string, id: string): Promise<void> {
+    await this.findOrThrow(tenantId, id);
     await this.contact.delete({ where: { id } });
   }
 
-  async updateStage(contactId: string, stage: CrmStage): Promise<Contact> {
-    const contact = await this.findOrThrow(contactId);
+  async updateStage(tenantId: string, contactId: string, stage: CrmStage): Promise<Contact> {
+    const contact = await this.findOrThrow(tenantId, contactId);
     const updated = await this.contact.update({ where: { id: contactId }, data: { stage } });
 
     await this.logActivity(
@@ -156,23 +165,25 @@ export class CrmService extends PrismaClient implements OnModuleInit {
 
   // ─── Notes ─────────────────────────────────────────────────────────────────
 
-  async getNotes(contactId: string) {
-    await this.findOrThrow(contactId);
+  async getNotes(tenantId: string, contactId: string) {
+    await this.findOrThrow(tenantId, contactId);
     return this.contactNote.findMany({
       where: { contactId },
       orderBy: { createdAt: 'desc' },
     });
   }
 
-  async createNote(contactId: string, dto: CreateNoteDto) {
-    await this.findOrThrow(contactId);
+  async createNote(tenantId: string, contactId: string, dto: CreateNoteDto) {
+    await this.findOrThrow(tenantId, contactId);
     const note = await this.contactNote.create({ data: { contactId, text: dto.text } });
     await this.logActivity(contactId, 'NOTE_ADDED', 'Заметка добавлена');
     return note;
   }
 
-  async deleteNote(_contactId: string, noteId: string): Promise<void> {
-    await this.contactNote.delete({ where: { id: noteId } });
+  async deleteNote(tenantId: string, contactId: string, noteId: string): Promise<void> {
+    await this.findOrThrow(tenantId, contactId);
+    const { count } = await this.contactNote.deleteMany({ where: { id: noteId, contactId } });
+    if (count === 0) throw new NotFoundException('Note not found');
   }
 
   // ─── Tags ──────────────────────────────────────────────────────────────────
@@ -189,18 +200,20 @@ export class CrmService extends PrismaClient implements OnModuleInit {
     });
   }
 
-  async addTagToContact(contactId: string, tagId: string) {
-    await this.findOrThrow(contactId);
+  async addTagToContact(tenantId: string, contactId: string, tagId: string) {
+    await this.findOrThrow(tenantId, contactId);
+    const tag = await this.tag.findFirst({ where: { id: tagId, tenantId } });
+    if (!tag) throw new NotFoundException('Tag not found');
     await this.contactTag.upsert({
       where: { contactId_tagId: { contactId, tagId } },
       update: {},
       create: { contactId, tagId },
     });
-    const tag = await this.tag.findUnique({ where: { id: tagId } });
-    await this.logActivity(contactId, 'TAG_ADDED', `Тег добавлен: ${tag?.name}`);
+    await this.logActivity(contactId, 'TAG_ADDED', `Тег добавлен: ${tag.name}`);
   }
 
-  async removeTagFromContact(contactId: string, tagId: string) {
+  async removeTagFromContact(tenantId: string, contactId: string, tagId: string) {
+    await this.findOrThrow(tenantId, contactId);
     await this.contactTag.delete({ where: { contactId_tagId: { contactId, tagId } } });
     const tag = await this.tag.findUnique({ where: { id: tagId } });
     await this.logActivity(contactId, 'TAG_REMOVED', `Тег удалён: ${tag?.name}`);
@@ -312,7 +325,7 @@ export class CrmService extends PrismaClient implements OnModuleInit {
     });
   }
 
-  async updateBusinessProfile(tenantId: string, data: { name?: string; agentContext?: string; chatHistory?: string; greenApiInstanceId?: string; greenApiToken?: string }) {
+  async updateBusinessProfile(tenantId: string, data: { name?: string; agentContext?: string; chatHistory?: string; greenApiInstanceId?: string; greenApiToken?: string; instagramAccountId?: string; instagramAccessToken?: string }) {
     return this.businessProfile.upsert({
       where: { tenantId },
       create: { tenantId, name: data.name ?? '', agentContext: data.agentContext ?? '' },
@@ -322,8 +335,8 @@ export class CrmService extends PrismaClient implements OnModuleInit {
 
   // ─── Utils ─────────────────────────────────────────────────────────────────
 
-  private async findOrThrow(id: string): Promise<Contact> {
-    const contact = await this.contact.findUnique({ where: { id } });
+  private async findOrThrow(tenantId: string, id: string): Promise<Contact> {
+    const contact = await this.contact.findFirst({ where: { id, tenantId } });
     if (!contact) throw new NotFoundException('Contact not found');
     return contact;
   }

@@ -56,7 +56,7 @@ export class WhatsAppService {
     await this.crm.saveMessage(contact.id, 'WHATSAPP', text, reply.text, reply.tokensUsed);
 
     if (reply.intent === 'READY_TO_BUY') {
-      await this.crm.updateStage(contact.id, 'NEGOTIATING');
+      await this.crm.updateStage(tenantId, contact.id, 'NEGOTIATING');
     }
 
     await this.sendMessage(instanceId, apiToken, phone, reply.text);

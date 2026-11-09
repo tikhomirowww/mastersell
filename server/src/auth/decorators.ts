@@ -1,4 +1,4 @@
-import { SetMetadata, createParamDecorator, ExecutionContext } from '@nestjs/common';
+import { SetMetadata, createParamDecorator, ExecutionContext, ForbiddenException } from '@nestjs/common';
 import { IS_PUBLIC_KEY } from './jwt.guard';
 
 /** Пометить роут как публичный (без JWT) */
@@ -8,7 +8,9 @@ export const Public = () => SetMetadata(IS_PUBLIC_KEY, true);
 export const TenantId = createParamDecorator(
   (_data: unknown, ctx: ExecutionContext): string => {
     const request = ctx.switchToHttp().getRequest();
-    return request.user?.tenantId ?? 'default-tenant';
+    const tenantId = request.user?.tenantId;
+    if (!tenantId) throw new ForbiddenException('User has no workspace');
+    return tenantId;
   },
 );
 

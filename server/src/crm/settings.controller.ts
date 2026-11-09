@@ -272,6 +272,21 @@ export class SettingsController {
   }
 
   /** Сохранить credentials вручную + выставить webhook */
+  @Put('instagram')
+  async saveInstagram(
+    @TenantId() tenantId: string,
+    @Body() body: { accountId: string; accessToken: string },
+  ) {
+    if (!body.accountId?.trim() || !body.accessToken?.trim()) {
+      throw new BadRequestException('accountId и accessToken обязательны');
+    }
+    await this.crm.updateBusinessProfile(tenantId, {
+      instagramAccountId: body.accountId.trim(),
+      instagramAccessToken: body.accessToken.trim(),
+    });
+    return { ok: true };
+  }
+
   @Put('whatsapp')
   async saveWhatsApp(
     @TenantId() tenantId: string,

@@ -7,14 +7,14 @@ import { MetaMessagingEvent } from './dto/instagram-webhook.dto';
 @Injectable()
 export class InstagramService {
   private readonly logger = new Logger(InstagramService.name);
-  private readonly pageAccessToken: string;
+  private readonly graphBaseUrl: string;
 
   constructor(
-    private readonly config: ConfigService,
+    config: ConfigService,
     private readonly sales: SalesService,
     private readonly crm: CrmService,
   ) {
-    this.pageAccessToken = this.config.get<string>('meta.instagramAccessToken') ?? '';
+    this.graphBaseUrl = config.get<string>('meta.graphBaseUrl')!;
   }
 
   async handleMessage(event: MetaMessagingEvent): Promise<void> {
@@ -26,8 +26,12 @@ export class InstagramService {
     const text = event.message.text;
     this.logger.log(`Incoming Instagram DM from ${senderId}: ${text}`);
 
-    // Instagram пока без multi-tenant роутинга — используем default
-    const tenantId = 'default-tenant';
+    const tenant = await this.crm.getTenantByInstagramAccount(event.recipient.id);
+    if (!tenant) {
+      this.logger.warn(`Instagram DM to unknown account ${event.recipient.id}, dropped`);
+      return;
+    }
+    const { tenantId } = tenant;
     const contact = await this.crm.upsertContact(tenantId, { instagramId: senderId });
 
     const reply = await this.sales.handle({
@@ -42,18 +46,16 @@ export class InstagramService {
     await this.crm.saveMessage(contact.id, 'INSTAGRAM', text, reply.text, reply.tokensUsed);
 
     if (reply.intent === 'READY_TO_BUY') {
-      await this.crm.updateStage(contact.id, 'NEGOTIATING');
+      await this.crm.updateStage(tenantId, contact.id, 'NEGOTIATING');
     }
 
-    await this.sendReply(senderId, reply.text);
+    await this.sendReply(tenant.token, senderId, reply.text);
   }
 
-  async sendReply(recipientId: string, text: string): Promise<void> {
-    const url = `https://graph.facebook.com/v19.0/me/messages?access_token=${this.pageAccessToken}`;
-
-    const response = await fetch(url, {
+  async sendReply(accessToken: string, recipientId: string, text: string): Promise<void> {
+    const response = await fetch(`${this.graphBaseUrl}/v19.0/me/messages`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
       body: JSON.stringify({
         recipient: { id: recipientId },
         message: { text },

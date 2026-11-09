@@ -205,6 +205,8 @@ model BusinessProfile {
   chatHistory        String?  @map("chat_history")
   greenApiInstanceId String?  @map("green_api_instance_id")
   greenApiToken      String?  @map("green_api_token")
+  instagramAccountId   String? @unique @map("instagram_account_id")
+  instagramAccessToken String? @map("instagram_access_token")
   updatedAt          DateTime @updatedAt @map("updated_at")
 
   tenant Tenant @relation(fields: [tenantId], references: [id])

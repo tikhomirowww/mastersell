@@ -30,6 +30,10 @@ http
         usage: { input_tokens: 120, output_tokens: 25 },
       });
     }
+    if (req.url === '/v19.0/me/messages') {
+      sent.push({ chatId: `ig:${body.recipient?.id} token=${req.headers.authorization?.slice(7)}`, message: body.message?.text, at: new Date().toISOString().slice(11, 19) });
+      return json(res, 200, { message_id: `ig_out_${sent.length}` });
+    }
     if (req.url?.includes('/sendMessage/')) {
       sent.push({ chatId: body.chatId, message: body.message, at: new Date().toISOString().slice(11, 19) });
       return json(res, 200, { idMessage: `out_${sent.length}` });

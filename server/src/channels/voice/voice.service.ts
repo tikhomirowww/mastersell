@@ -131,7 +131,7 @@ export class VoiceService implements OnModuleInit {
     });
 
     if (reply.intent === 'READY_TO_BUY') {
-      await this.crm.updateStage(contactId, 'NEGOTIATING');
+      await this.crm.updateStage(tenantId, contactId, 'NEGOTIATING');
     }
 
     const audioUrl = await this.generateAudio(reply.text, crypto.randomUUID());
@@ -198,7 +198,7 @@ export class VoiceService implements OnModuleInit {
     }
 
     if (intent === 'READY_TO_BUY') {
-      await this.crm.updateStage(contactId, 'NEGOTIATING');
+      await this.crm.updateStage(tenantId, contactId, 'NEGOTIATING');
     }
 
     yield { type: 'done', intent };

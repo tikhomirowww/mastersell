@@ -29,6 +29,7 @@ export const twilioConfig = registerAs('twilio', () => ({
 export const metaConfig = registerAs('meta', () => ({
   appId: process.env.META_APP_ID ?? '',
   appSecret: process.env.META_APP_SECRET ?? '',
+  graphBaseUrl: process.env.META_GRAPH_BASE_URL ?? 'https://graph.facebook.com',
   verifyToken: process.env.META_VERIFY_TOKEN ?? '',
   pageAccessToken: process.env.META_PAGE_ACCESS_TOKEN ?? '',
   instagramAccessToken: process.env.META_INSTAGRAM_ACCESS_TOKEN ?? '',

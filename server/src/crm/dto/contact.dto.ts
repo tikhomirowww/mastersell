@@ -1,41 +1,43 @@
 import { CrmStage, Language, Channel } from '@prisma/client';
+import { Type } from 'class-transformer';
+import { IsEmail, IsEnum, IsInt, IsOptional, IsString, Max, MaxLength, Min, MinLength } from 'class-validator';
 
 export class CreateContactDto {
-  phone?: string;
-  instagramId?: string;
-  name?: string;
-  email?: string;
-  language?: Language;
-  stage?: CrmStage;
+  @IsOptional() @IsString() phone?: string;
+  @IsOptional() @IsString() instagramId?: string;
+  @IsOptional() @IsString() @MaxLength(200) name?: string;
+  @IsOptional() @IsEmail() email?: string;
+  @IsOptional() @IsEnum(Language) language?: Language;
+  @IsOptional() @IsEnum(CrmStage) stage?: CrmStage;
 }
 
 export class UpdateContactDto {
-  name?: string;
-  email?: string;
-  phone?: string;
-  language?: Language;
-  notes?: string;
-  avatarUrl?: string;
+  @IsOptional() @IsString() @MaxLength(200) name?: string;
+  @IsOptional() @IsEmail() email?: string;
+  @IsOptional() @IsString() phone?: string;
+  @IsOptional() @IsEnum(Language) language?: Language;
+  @IsOptional() @IsString() notes?: string;
+  @IsOptional() @IsString() avatarUrl?: string;
 }
 
 export class UpdateStageDto {
-  stage!: CrmStage;
+  @IsEnum(CrmStage) stage!: CrmStage;
 }
 
 export class CreateNoteDto {
-  text!: string;
+  @IsString() @MinLength(1) @MaxLength(5000) text!: string;
 }
 
 export class CreateTagDto {
-  name!: string;
-  color?: string;
+  @IsString() @MinLength(1) @MaxLength(50) name!: string;
+  @IsOptional() @IsString() color?: string;
 }
 
 export class ContactsQueryDto {
-  page?: number;
-  limit?: number;
-  search?: string;
-  stage?: CrmStage;
-  channel?: Channel;
-  language?: Language;
+  @IsOptional() @Type(() => Number) @IsInt() @Min(1) page?: number;
+  @IsOptional() @Type(() => Number) @IsInt() @Min(1) @Max(100) limit?: number;
+  @IsOptional() @IsString() search?: string;
+  @IsOptional() @IsEnum(CrmStage) stage?: CrmStage;
+  @IsOptional() @IsEnum(Channel) channel?: Channel;
+  @IsOptional() @IsEnum(Language) language?: Language;
 }

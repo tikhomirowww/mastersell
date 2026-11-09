@@ -208,16 +208,18 @@ describe('CrmService', () => {
 
   describe('getContact', () => {
     it('выбрасывает NotFoundException если контакт не найден', async () => {
-      jest.spyOn(service.contact, 'findUnique').mockResolvedValue(null);
+      jest.spyOn(service.contact, 'findFirst').mockResolvedValue(null);
 
-      await expect(service.getContact('nonexistent-id')).rejects.toThrow(NotFoundException);
+      await expect(service.getContact('tenant-1', 'nonexistent-id')).rejects.toThrow(NotFoundException);
     });
 
     it('возвращает контакт если найден', async () => {
       const contact = { id: 'some-id', name: 'Иван' } as any;
-      jest.spyOn(service.contact, 'findUnique').mockResolvedValue(contact);
+      const findFirst = jest.spyOn(service.contact, 'findFirst').mockResolvedValue(contact);
 
-      const result = await service.getContact('some-id');
+      const result = await service.getContact('tenant-1', 'some-id');
+
+      expect(findFirst).toHaveBeenCalledWith(expect.objectContaining({ where: { id: 'some-id', tenantId: 'tenant-1' } }));
 
       expect(result).toEqual(contact);
     });
