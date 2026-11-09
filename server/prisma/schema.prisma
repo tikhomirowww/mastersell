@@ -274,3 +274,13 @@ enum ActivityType {
   TAG_ADDED
   TAG_REMOVED
 }
+
+// ─── Идемпотентность входящих событий (webhooks) ─────────────────────────────
+model ProcessedMessage {
+  id         String    @id
+  status     String    @default("processing")
+  startedAt  DateTime  @default(now()) @map("started_at")
+  finishedAt DateTime? @map("finished_at")
+
+  @@map("processed_messages")
+}

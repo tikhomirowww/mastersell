@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { APP_GUARD } from '@nestjs/core';
-import { ConfigModule } from '@nestjs/config';
+import { ConfigModule, ConfigService } from '@nestjs/config';
+import { BullModule } from '@nestjs/bull';
 import {
   appConfig,
   redisConfig,
@@ -53,6 +54,13 @@ import { VoiceModule } from './channels/voice/voice.module';
         yandexConfig,
         greenApiConfig,
       ],
+    }),
+
+    BullModule.forRootAsync({
+      inject: [ConfigService],
+      useFactory: (config: ConfigService) => ({
+        redis: { host: config.get('redis.host'), port: config.get('redis.port') },
+      }),
     }),
 
     // ── Auth ────────────────────────────────────────────

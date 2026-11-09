@@ -54,6 +54,7 @@ export const elevenlabsConfig = registerAs('elevenlabs', () => ({
 }));
 
 export const greenApiConfig = registerAs('greenApi', () => ({
+  baseUrl: process.env.GREENAPI_BASE_URL ?? 'https://api.green-api.com',
   partnerToken: process.env.GREENAPI_PARTNER_TOKEN ?? '',
 }));
 

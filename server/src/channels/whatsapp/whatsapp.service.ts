@@ -3,13 +3,13 @@ import { ConfigService } from '@nestjs/config';
 import { SalesService } from '../../agents/sales/sales.service';
 import { CrmService } from '../../crm/crm.service';
 
-const GREEN_API_BASE = 'https://api.green-api.com';
 const DEEPGRAM_API_URL = 'https://api.deepgram.com/v1/listen';
 
 @Injectable()
 export class WhatsAppService {
   private readonly logger = new Logger(WhatsAppService.name);
   private readonly deepgramApiKey: string;
+  private readonly greenApiBase: string;
 
   constructor(
     private readonly config: ConfigService,
@@ -17,6 +17,7 @@ export class WhatsAppService {
     private readonly crm: CrmService,
   ) {
     this.deepgramApiKey = this.config.get<string>('deepgram.apiKey') ?? '';
+    this.greenApiBase = this.config.get<string>('greenApi.baseUrl') ?? 'https://api.green-api.com';
   }
 
   /**
@@ -29,6 +30,7 @@ export class WhatsAppService {
     phone: string,
     text: string,
     name?: string,
+    opts: { canRetry?: boolean } = {},
   ): Promise<void> {
     this.logger.log(`Incoming WhatsApp from ${phone} (instance=${instanceId}): ${text}`);
 
@@ -45,6 +47,7 @@ export class WhatsAppService {
         text,
       });
     } catch (err) {
+      if (opts.canRetry) throw err;
       this.logger.error(`Sales agent failed for ${phone}`, err);
       await this.sendMessage(instanceId, apiToken, phone, 'Секунду, сейчас уточню информацию и вернусь к вам 🙏');
       return;
@@ -69,6 +72,7 @@ export class WhatsAppService {
     phone: string,
     downloadUrl: string,
     name?: string,
+    opts: { canRetry?: boolean } = {},
   ): Promise<void> {
     this.logger.log(`Incoming WhatsApp audio from ${phone}, url=${downloadUrl}`);
 
@@ -93,7 +97,7 @@ export class WhatsAppService {
     }
 
     this.logger.log(`Transcribed audio from ${phone}: ${text}`);
-    await this.handleIncoming(instanceId, apiToken, tenantId, phone, text, name);
+    await this.handleIncoming(instanceId, apiToken, tenantId, phone, text, name, opts);
   }
 
   /**
@@ -101,7 +105,7 @@ export class WhatsAppService {
    */
   async sendMessage(instanceId: string, apiToken: string, phone: string, text: string): Promise<void> {
     const chatId = this.toChatId(phone);
-    const url = `${GREEN_API_BASE}/waInstance${instanceId}/sendMessage/${apiToken}`;
+    const url = `${this.greenApiBase}/waInstance${instanceId}/sendMessage/${apiToken}`;
 
     const res = await fetch(url, {
       method: 'POST',
